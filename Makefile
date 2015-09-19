@@ -13,7 +13,7 @@ oneir.bin: oneir.hex
 
 
 
-oneir.elf: oneir.c smbus.c
+oneir.elf: oneir.c smbus.c ir.c
 	avr-gcc -std=c99 -Wall -Os -mmcu=attiny45 -o $@ $^
 
 .PHONY: all

@@ -5,6 +5,7 @@
 #include <avr/interrupt.h>
 
 #include "smbus.h"
+#include "ir.h"
 
 #define SMBUS_ADDR 0x10
 
@@ -13,15 +14,14 @@ struct smbus_message message;
 
 int main(void)
 {
-    DDRB |= _BV(IRLED);
+    ir_init();
     smbus_init(SMBUS_ADDR);
     sei();
 
     while(1)
     {
         smbus_receive(&message);
-        if (message.address == 0xa5 && message.code == 0xc3)
-            PORTB ^= _BV(IRLED);
+        ir_send(message.address, message.code);
     }
 
     return 0;
