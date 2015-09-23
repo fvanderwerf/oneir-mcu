@@ -6,6 +6,8 @@
 
 #define IRLED PB1
 
+#define DUTY_CYCLE 60
+
 #define PULSES_PER_SYMBOL 32
 
 #define IR_CLOCK_DIV (_BV(CS12))
@@ -21,19 +23,15 @@
     } while(0)
 
 
-static enum ir_state {
-    IR_NONE,
-    IR_INIT,
-    IR_SEND,
-    IR_DONE
-} ir_state = IR_NONE;
+struct pattern {
+    int duty;
+    int reps;
+};
 
+static struct pattern ir_pattern[100];
+static struct pattern *ir_pattern_current;
+static struct pattern *ir_pattern_end;
 
-// RC-5 TV '0'
-static int ir_pattern_ocra[]   = {  0, 60,  0, 60, 60,  0, 60,  0, 60,  0, 60,  0, 60,  0, 60,  0, 60,  0, 60,  0, 60,  0, 60,  0, 60,  0, 60,  0 };
-static int ir_pattern_length = sizeof(ir_pattern_ocra)/sizeof(int);
-static int ir_pattern_index;
-static int ir_pulsecountdown;
 
 inline void init_pll(void)
 {
@@ -60,7 +58,6 @@ inline void init_timer1(void)
 
 void ir_init(void)
 {
-    ir_state = IR_NONE;
     DDRB |= _BV(IRLED);
     init_pll();
     init_timer1();
@@ -69,31 +66,13 @@ void ir_init(void)
 
 ISR(TIM1_OVF_vect)
 {
-    switch(ir_state) {
-        case IR_INIT:
-            OCR1A = ir_pattern_ocra[ir_pattern_index];
-            ir_pulsecountdown = PULSES_PER_SYMBOL;
-            ir_state = IR_SEND;
-            break;
-        case IR_SEND:
-            ir_pulsecountdown--;
-            if (ir_pulsecountdown == 0) {
-                ir_pattern_index++;
-                if (ir_pattern_index >= ir_pattern_length) {
-                    ir_state = IR_DONE;
-                    OCR1A = 0;
-                } else {
-                    OCR1A = ir_pattern_ocra[ir_pattern_index];
-                    ir_pulsecountdown = PULSES_PER_SYMBOL;
-                }
-            }
-            break;
-        case IR_DONE:
-        case IR_NONE:
-        default:
-            ir_state = IR_NONE;
-            IR_DISABLE_CLOCK();
-            break;
+    if (ir_pattern_current < ir_pattern_end) {
+        OCR1A = ir_pattern_current->duty;
+
+        if (--ir_pattern_current->reps == 0)
+            ir_pattern_current++;
+    } else {
+        IR_DISABLE_CLOCK();
     }
 }
 
@@ -101,8 +80,7 @@ static void ir_reset(void)
 {
     IR_DISABLE_CLOCK();
 
-    ir_state = IR_INIT;
-    ir_pattern_index = 0;
+    ir_pattern_end = ir_pattern_current = ir_pattern;
 
     TCNT1 = 0;
     OCR1A = 0;
@@ -113,45 +91,61 @@ static void ir_reset(void)
 }
 
 
-void ir_write_pattern(int value, int *offset)
+static void ir_pattern_append(int duty, int reps)
 {
-    if (value == 0) {
-        ir_pattern_ocra[(*offset)++] = 60;
-        ir_pattern_ocra[(*offset)++] = 0;
+    ir_pattern_end->duty = duty;
+    ir_pattern_end->reps = reps;
+
+    ir_pattern_end++;
+} 
+
+static void ir_write_rc5_bit(int bit)
+{
+    if (bit == 0) {
+        ir_pattern_append(DUTY_CYCLE, PULSES_PER_SYMBOL);
+        ir_pattern_append(0, PULSES_PER_SYMBOL);
     } else {
-        ir_pattern_ocra[(*offset)++] = 0;
-        ir_pattern_ocra[(*offset)++] = 60;
+        ir_pattern_append(0, PULSES_PER_SYMBOL);
+        ir_pattern_append(DUTY_CYCLE, PULSES_PER_SYMBOL);
     }
 }
 
-void ir_send(uint8_t address, uint8_t code)
+static void ir_write_rc5_pattern(uint16_t address, uint16_t code)
 {
-    int i = 0;
-    int j;
     static int toggle = 0;
-
-    ir_reset();
+    int j;
 
     /* start bit */
-    ir_write_pattern(1, &i);
+    ir_write_rc5_bit(1);
 
     /* field bit */
-    if (code < 64)
-        ir_write_pattern(1, &i);
-    else
-        ir_write_pattern(0, &i);
+    ir_write_rc5_bit(code < 64);
 
     /* toggle bit */
     toggle = 1 - toggle;
-    ir_write_pattern(toggle, &i);
+    ir_write_rc5_bit(toggle);
 
     /* address */
     for (j = 0; j < 5; j++)
-        ir_write_pattern((address >> (4 - j)) & 0x01, &i);
+        ir_write_rc5_bit((address >> (4 - j)) & 0x01);
 
     /* code */
     for (j = 0; j < 6; j++)
-        ir_write_pattern((code >> (5 - j)) & 0x01, &i);
+        ir_write_rc5_bit((code >> (5 - j)) & 0x01);
+
+}
+
+void ir_send(enum ir_protocol protocol, uint16_t address, uint16_t code)
+{
+    ir_reset();
+
+    switch(protocol) {
+        case IR_RC5:
+            ir_write_rc5_pattern(address, code);
+            break;
+        default:
+            return;
+    }
 
     IR_ENABLE_CLOCK();
 }

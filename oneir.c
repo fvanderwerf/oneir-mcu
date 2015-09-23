@@ -21,7 +21,7 @@ int main(void)
     while(1)
     {
         smbus_receive(&message);
-        ir_send(message.address, message.code);
+        ir_send(IR_RC5, message.address, message.code);
     }
 
     return 0;
