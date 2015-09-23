@@ -93,7 +93,6 @@ void send_code(void)
     GTCCR |= _BV(PSR1); //reset prescaler
     TIFR |= _BV(TOV1); //reset any pending interrupt
     TCCR1 |= _BV(CS12); //enable clock
-    //TCCR1 |= _BV(CS13) | _BV(CS12) | _BV(CS11) | _BV(CS10); //enable clock
 }
 
 void ir_write_pattern(int value, int *offset)
