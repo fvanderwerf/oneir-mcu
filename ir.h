@@ -10,7 +10,7 @@ enum ir_protocol {
 
 void ir_init(void);
 
-void ir_send(enum ir_protocol protocol, uint16_t address, uint16_t code);
+void ir_send_cmd(enum ir_protocol protocol, uint16_t address, uint16_t code);
 
 #endif /* IR_H */
 

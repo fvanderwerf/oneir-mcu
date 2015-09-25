@@ -135,7 +135,7 @@ static void ir_write_rc5_pattern(uint16_t address, uint16_t code)
 
 }
 
-void ir_send(enum ir_protocol protocol, uint16_t address, uint16_t code)
+void ir_send_cmd(enum ir_protocol protocol, uint16_t address, uint16_t code)
 {
     ir_reset();
 
