@@ -10,18 +10,7 @@
 
 #define PULSES_PER_SYMBOL 32
 
-#define IR_CLOCK_DIV (_BV(CS12))
-
-#define IR_ENABLE_CLOCK()       \
-    do {                        \
-        TCCR1 |= IR_CLOCK_DIV;  \
-    } while(0)
-
-#define IR_DISABLE_CLOCK()      \
-    do {                        \
-        TCCR1 &= 0xF0;          \
-    } while(0)
-
+static int ir_clkdiv = _BV(CS12);
 
 struct pattern {
     int duty;
@@ -63,6 +52,16 @@ void ir_init(void)
     init_timer1();
 }
 
+static inline void ir_enable_clock()
+{
+    TCCR1 |= ir_clkdiv;
+}
+
+static inline void ir_disable_clock()
+{
+    TCCR1 &= 0xF0;
+}
+
 
 ISR(TIM1_OVF_vect)
 {
@@ -72,13 +71,13 @@ ISR(TIM1_OVF_vect)
         if (--ir_pattern_current->reps == 0)
             ir_pattern_current++;
     } else {
-        IR_DISABLE_CLOCK();
+        ir_disable_clock();
     }
 }
 
 static void ir_reset(void)
 {
-    IR_DISABLE_CLOCK();
+    ir_disable_clock();
 
     ir_pattern_end = ir_pattern_current = ir_pattern;
 
@@ -147,6 +146,6 @@ void ir_send_cmd(enum ir_protocol protocol, uint16_t address, uint16_t code)
             return;
     }
 
-    IR_ENABLE_CLOCK();
+    ir_enable_clock();
 }
 
