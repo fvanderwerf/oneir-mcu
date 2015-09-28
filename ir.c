@@ -52,12 +52,12 @@ void ir_init(void)
     init_timer1();
 }
 
-static inline void ir_enable_clock()
+void ir_start_clock()
 {
     TCCR1 |= ir_clkdiv;
 }
 
-static inline void ir_disable_clock()
+void ir_stop_clock()
 {
     TCCR1 &= 0xF0;
 }
@@ -71,13 +71,13 @@ ISR(TIM1_OVF_vect)
         if (--ir_pattern_current->reps == 0)
             ir_pattern_current++;
     } else {
-        ir_disable_clock();
+        ir_stop_clock();
     }
 }
 
 static void ir_reset(void)
 {
-    ir_disable_clock();
+    ir_stop_clock();
 
     ir_pattern_end = ir_pattern_current = ir_pattern;
 
@@ -146,6 +146,6 @@ void ir_send_cmd(enum ir_protocol protocol, uint16_t address, uint16_t code)
             return;
     }
 
-    ir_enable_clock();
+    ir_start_clock();
 }
 
