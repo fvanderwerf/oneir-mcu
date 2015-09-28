@@ -39,10 +39,6 @@ inline void init_timer1(void)
     TCCR1 = _BV(CTC1) | _BV(PWM1A) | _BV(COM1A1);  //clear timer1 on ocr1c match, enable pwm1a, pwm1a mode: set on 0, clear on match, clock is disabled
     OCR1A = 0;           // 0% dutycycle
     OCR1C = 255;         // non zero to avoid overflow interrupt
-
-    TIFR |= _BV(TOV1);   // clear overflow interrupt if there is one pending
-    TIMSK |= _BV(TOIE1); // enable timer1 overflow interrupt
-
 }
 
 void ir_init(void)
@@ -54,11 +50,18 @@ void ir_init(void)
 
 void ir_start_clock()
 {
+    OCR1A = 0;
+    TCNT1 = 0;
+    GTCCR |= _BV(PSR1); //reset prescaler
+    TIFR |= _BV(TOV1); //reset any pending interrupt
+    TIMSK |= _BV(TOIE1); // enable timer1 overflow interrupt
     TCCR1 |= ir_clkdiv;
 }
 
 void ir_stop_clock()
 {
+    TIMSK &= ~_BV(TOIE1); // disable timer1 overflow interrupt
+    OCR1A = 0;
     TCCR1 &= 0xF0;
 }
 
@@ -81,12 +84,8 @@ static void ir_reset(void)
 
     ir_pattern_end = ir_pattern_current = ir_pattern;
 
-    TCNT1 = 0;
-    OCR1A = 0;
     OCR1C = 221;          // 64MHz divided by 8 = 8Mhz, compare match clear at 221, --> 8Mhz / (221 + 1) = 36.0kHz
 
-    GTCCR |= _BV(PSR1); //reset prescaler
-    TIFR |= _BV(TOV1); //reset any pending interrupt
 }
 
 
