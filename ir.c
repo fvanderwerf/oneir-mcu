@@ -17,9 +17,9 @@ struct pattern {
     int reps;
 };
 
-static struct pattern ir_pattern[100];
-static struct pattern *ir_pattern_current;
-static struct pattern *ir_pattern_end;
+static uint8_t ir_pattern[50];
+static uint8_t *ir_pattern_current;
+static uint8_t *ir_pattern_end;
 
 
 inline void init_pll(void)
@@ -69,9 +69,11 @@ void ir_stop_clock()
 ISR(TIM1_OVF_vect)
 {
     if (ir_pattern_current < ir_pattern_end) {
-        OCR1A = ir_pattern_current->duty;
+        OCR1A = (*ir_pattern_current & 0x80) ? DUTY_CYCLE : 0;
 
-        if (--ir_pattern_current->reps == 0)
+        *ir_pattern_current -= 1;
+        
+        if (((*ir_pattern_current) & 0x7F) == 0)
             ir_pattern_current++;
     } else {
         ir_stop_clock();
@@ -91,8 +93,15 @@ static void ir_reset(void)
 
 static void ir_pattern_append(int duty, int reps)
 {
-    ir_pattern_end->duty = duty;
-    ir_pattern_end->reps = reps;
+    while (reps > 0x7F) {
+        *ir_pattern_end = (duty ? 0x80 : 0x00 ) | 0x7F;
+
+        reps -= 0x7F;
+
+        ir_pattern_end++;
+    }
+
+    *ir_pattern_end = (duty ? 0x80 : 0x00 ) | reps;
 
     ir_pattern_end++;
 } 
@@ -100,11 +109,11 @@ static void ir_pattern_append(int duty, int reps)
 static void ir_write_rc5_bit(int bit)
 {
     if (bit == 0) {
-        ir_pattern_append(DUTY_CYCLE, PULSES_PER_SYMBOL);
+        ir_pattern_append(1, PULSES_PER_SYMBOL);
         ir_pattern_append(0, PULSES_PER_SYMBOL);
     } else {
         ir_pattern_append(0, PULSES_PER_SYMBOL);
-        ir_pattern_append(DUTY_CYCLE, PULSES_PER_SYMBOL);
+        ir_pattern_append(1, PULSES_PER_SYMBOL);
     }
 }
 
