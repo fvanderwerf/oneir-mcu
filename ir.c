@@ -12,11 +12,6 @@
 
 static int ir_clkdiv = _BV(CS12);
 
-struct pattern {
-    int duty;
-    int reps;
-};
-
 static uint8_t ir_pattern[50];
 static uint8_t *ir_pattern_current;
 static uint8_t *ir_pattern_end;
