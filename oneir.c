@@ -4,23 +4,23 @@
 #include <util/delay.h>
 #include <avr/interrupt.h>
 
-#include "smbus.h"
+#include "i2c.h"
 #include "ir.h"
 
-#define SMBUS_ADDR 0x10
+#define I2C_ADDR 0x10
 
-struct smbus_message message;
+struct i2c_message message;
 
 
 int main(void)
 {
     ir_init();
-    smbus_init(SMBUS_ADDR);
+    i2c_init(I2C_ADDR);
     sei();
 
     while(1)
     {
-        smbus_receive(&message);
+        i2c_receive(&message);
         ir_send_cmd(IR_RC5, message.address, message.code);
     }
 

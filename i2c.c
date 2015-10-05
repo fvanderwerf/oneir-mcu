@@ -1,5 +1,5 @@
 
-#include "smbus.h"
+#include "i2c.h"
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -10,7 +10,7 @@
 #define SCLPIN PINB2
 #define SDAPIN PINB0
 
-enum smbus_state {
+enum i2c_state {
     CHECK_ADDRESS,
     PREPARE_READ_REGISTER,
     READ_REGISTER,
@@ -20,24 +20,24 @@ enum smbus_state {
 };
 
 enum {
-    SMBUS_WRITE,
-    SMBUS_READ
-} smbus_direction;
+    I2C_WRITE,
+    I2C_READ
+} i2c_direction;
 
 static uint8_t address;
 
 
-static enum smbus_state state;
-static uint8_t smbus_register;
+static enum i2c_state state;
+static uint8_t i2c_register;
 
-volatile static int smbus_data_ready;
-static uint16_t smbus_data;
-static uint8_t smbus_data_num;
+volatile static int i2c_data_ready;
+static uint16_t i2c_data;
+static uint8_t i2c_data_num;
 
-void smbus_init(uint8_t smbus_address)
+void i2c_init(uint8_t i2c_address)
 {
-    address = smbus_address;
-    smbus_data_ready = 0;
+    address = i2c_address;
+    i2c_data_ready = 0;
 
     DDRB |= ( 1 << SCL ) | ( 1 << SDA );
 
@@ -81,7 +81,7 @@ ISR(USI_START_vect)
   if ( !( PINB & ( 1 << SDAPIN ) ) )
   {
     state = CHECK_ADDRESS;
-    smbus_data_num = 0;
+    i2c_data_num = 0;
     USISR = 0; //reset overflow counter;
     USISR |= _BV(USIOIF);
     USICR |= _BV(USIOIE) | _BV(USIWM0);
@@ -115,7 +115,7 @@ ISR(USI_OVF_vect)
     {
         case CHECK_ADDRESS:
             if (USIDR >> 1 == address) { 
-                smbus_direction = USIDR & 0x01;
+                i2c_direction = USIDR & 0x01;
 
                 USIDR = 0; /* pull SDA low */              
                 DDRB |= _BV(SDA); /*set SDA as output */    
@@ -136,9 +136,9 @@ ISR(USI_OVF_vect)
             break;
 
         case READ_REGISTER:
-            smbus_register = USIDR;
+            i2c_register = USIDR;
 
-            if (!smbus_data_ready && smbus_register == 0x10) {
+            if (!i2c_data_ready && i2c_register == 0x10) {
                 SETUP_SEND_ACK();
                 state = PREPARE_READ_DATA;
             } else {
@@ -154,14 +154,14 @@ ISR(USI_OVF_vect)
             break;
 
         case READ_DATA:
-            smbus_data >>= 8;
-            smbus_data |= ((uint16_t) USIDR) << 8;
-            smbus_data_num++;
+            i2c_data >>= 8;
+            i2c_data |= ((uint16_t) USIDR) << 8;
+            i2c_data_num++;
 
             SETUP_SEND_ACK();
 
-            if (smbus_data_num == 2) {
-                smbus_data_ready = 1;
+            if (i2c_data_num == 2) {
+                i2c_data_ready = 1;
                 state = DONE;
             } else {
                 state = PREPARE_READ_DATA;
@@ -178,13 +178,13 @@ ISR(USI_OVF_vect)
     USISR |= _BV(USIOIF); //clear interrupt
 }
 
-void smbus_receive(struct smbus_message *message)
+void i2c_receive(struct i2c_message *message)
 {
-    while (!smbus_data_ready)
+    while (!i2c_data_ready)
         ;
 
-    message->address = (smbus_data >> 8) & 0xFF;
-    message->code = smbus_data & 0xFF;
-    smbus_data_ready = 0;
+    message->address = (i2c_data >> 8) & 0xFF;
+    message->code = i2c_data & 0xFF;
+    i2c_data_ready = 0;
 }
 
