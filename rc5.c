@@ -34,7 +34,7 @@ void rc5_to_raw(struct ir_command *command)
     uint8_t code = command->rc5.code;
     uint8_t *_pattern, **pattern;
 
-    command->type = RAW;
+    command->type = IR_RAW;
     command->raw.fcarrier = 36000;
     command->raw.duty_cycle = 27;
 

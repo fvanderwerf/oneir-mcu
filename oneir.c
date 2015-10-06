@@ -25,7 +25,7 @@ int main(void)
     {
         i2c_receive(&message);
 
-        command.type = RC5;
+        command.type = IR_RC5;
         command.rc5.address = message.address;
         command.rc5.code = message.code;
 
