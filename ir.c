@@ -73,10 +73,35 @@ ISR(TIM1_OVF_vect)
     }
 }
 
-static void ir_config(uint8_t duty)
-{
 
-    OCR1C = 221;          // 64MHz divided by 8 = 8Mhz, compare match clear at 221, --> 8Mhz / (221 + 1) = 36.0kHz
+static void ir_set_clock(uint16_t f)
+{
+    int i;
+    //ir_clkdiv = 4;
+
+    for (i = 0; i < 15; i++) {
+        // clkdivider is 1 << i
+
+        // check if this divider is large enough
+        // check if Fpck / clkdiv / 256 < f  -- 256 -> range of counter
+        //          64MHz/ (1<<i) / 256 < f
+        if (f > (250000L >> i)) {
+            //ir_clkdiv = 4;
+            ir_clkdiv = i + 1; //value for TCCR1 CSxx, divider is offset by 1, because 0 is used to turn off clk
+
+            //ocr0c_2 this value is twice the value of the final OCR1C,
+            int ocr1c_2 = (512 * 250000L >>  i) / f;
+            // now we can use the "bit after the comma" from ocr1c_2 for proper rounding
+            OCR1C = (ocr1c_2 >> 1) + (ocr1c_2 & 0x01) - 1; // -1, because the timer run up to and including this register
+            break;
+        }
+    }
+}
+
+static void ir_config(uint16_t carrier, uint8_t duty)
+{
+    //OCR1C = 221;          // 64MHz divided by 8 = 8Mhz, compare match clear at 221, --> 8Mhz / (221 + 1) = 36.0kHz
+    ir_set_clock(carrier);
 
     uint16_t _duty = OCR1C;
     _duty *= duty;
@@ -87,8 +112,8 @@ static void ir_config(uint8_t duty)
 void ir_send(uint16_t carrier, uint8_t duty, uint8_t *pattern)
 {
     ir_stop_clock();
-    ir_config(duty);
 
+    ir_config(carrier, duty);
 
     ir_pattern = pattern;
 
