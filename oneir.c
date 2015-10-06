@@ -11,8 +11,6 @@
 
 #define I2C_ADDR 0x10
 
-struct i2c_message message;
-
 struct ir_command command;
 
 int main(void)
@@ -23,15 +21,13 @@ int main(void)
 
     while(1)
     {
-        i2c_receive(&message);
+        i2c_receive(&command);
 
-        command.type = IR_RC5;
-        command.rc5.address = message.address;
-        command.rc5.code = message.code;
+        if (command.type == IR_RC5)
+            rc5_to_raw(&command);
 
-        rc5_to_raw(&command);
-
-        ir_send(command.raw.fcarrier, command.raw.duty_cycle, command.raw.pattern);
+        if (command.type == IR_RAW)
+            ir_send(command.raw.fcarrier, command.raw.duty_cycle, command.raw.pattern);
     }
 
     return 0;

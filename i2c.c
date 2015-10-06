@@ -175,13 +175,15 @@ ISR(USI_OVF_vect)
     USISR |= _BV(USIOIF); //clear interrupt
 }
 
-void i2c_receive(struct i2c_message *message)
+void i2c_receive(struct ir_command *command)
 {
     while (!i2c_data_ready)
         ;
 
-    message->address = (i2c_data >> 8) & 0xFF;
-    message->code = i2c_data & 0xFF;
+    command->type = IR_RC5;
+
+    command->rc5.address = (i2c_data >> 8) & 0xFF;
+    command->rc5.code = i2c_data & 0xFF;
     i2c_data_ready = 0;
 }
 
