@@ -5,12 +5,15 @@
 #include <avr/interrupt.h>
 
 #include "i2c.h"
+#include "rc5.h"
 #include "ir.h"
+#include "command.h"
 
 #define I2C_ADDR 0x10
 
 struct i2c_message message;
 
+struct ir_command command;
 
 int main(void)
 {
@@ -21,7 +24,14 @@ int main(void)
     while(1)
     {
         i2c_receive(&message);
-        ir_send_cmd(IR_RC5, message.address, message.code);
+
+        command.type = RC5;
+        command.rc5.address = message.address;
+        command.rc5.code = message.code;
+
+        rc5_to_raw(&command);
+
+        ir_send(command.raw.fcarrier, command.raw.duty_cycle, command.raw.pattern);
     }
 
     return 0;

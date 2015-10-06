@@ -12,9 +12,7 @@
 
 static int ir_clkdiv = _BV(CS12);
 
-static uint8_t ir_pattern[50];
-static uint8_t *ir_pattern_current;
-static uint8_t *ir_pattern_end;
+static uint8_t *ir_pattern;
 
 
 inline void init_pll(void)
@@ -63,13 +61,13 @@ void ir_stop_clock()
 
 ISR(TIM1_OVF_vect)
 {
-    if (ir_pattern_current < ir_pattern_end) {
-        OCR1A = (*ir_pattern_current & 0x80) ? DUTY_CYCLE : 0;
+    if (*ir_pattern) {
+        OCR1A = (*ir_pattern & 0x80) ? DUTY_CYCLE : 0;
 
-        *ir_pattern_current -= 1;
+        *ir_pattern -= 1;
         
-        if (((*ir_pattern_current) & 0x7F) == 0)
-            ir_pattern_current++;
+        if ((*ir_pattern & 0x7F) == 0)
+            ir_pattern++;
     } else {
         ir_stop_clock();
     }
@@ -79,76 +77,15 @@ static void ir_reset(void)
 {
     ir_stop_clock();
 
-    ir_pattern_end = ir_pattern_current = ir_pattern;
-
     OCR1C = 221;          // 64MHz divided by 8 = 8Mhz, compare match clear at 221, --> 8Mhz / (221 + 1) = 36.0kHz
 
 }
 
-
-static void ir_pattern_append(int duty, int reps)
-{
-    while (reps > 0x7F) {
-        *ir_pattern_end = (duty ? 0x80 : 0x00 ) | 0x7F;
-
-        reps -= 0x7F;
-
-        ir_pattern_end++;
-    }
-
-    *ir_pattern_end = (duty ? 0x80 : 0x00 ) | reps;
-
-    ir_pattern_end++;
-} 
-
-static void ir_write_rc5_bit(int bit)
-{
-    if (bit == 0) {
-        ir_pattern_append(1, PULSES_PER_SYMBOL);
-        ir_pattern_append(0, PULSES_PER_SYMBOL);
-    } else {
-        ir_pattern_append(0, PULSES_PER_SYMBOL);
-        ir_pattern_append(1, PULSES_PER_SYMBOL);
-    }
-}
-
-static void ir_write_rc5_pattern(uint16_t address, uint16_t code)
-{
-    static int toggle = 0;
-    int j;
-
-    /* start bit */
-    ir_write_rc5_bit(1);
-
-    /* field bit */
-    ir_write_rc5_bit(code < 64);
-
-    /* toggle bit */
-    toggle = 1 - toggle;
-    ir_write_rc5_bit(toggle);
-
-    /* address */
-    for (j = 0; j < 5; j++)
-        ir_write_rc5_bit((address >> (4 - j)) & 0x01);
-
-    /* code */
-    for (j = 0; j < 6; j++)
-        ir_write_rc5_bit((code >> (5 - j)) & 0x01);
-
-}
-
-void ir_send_cmd(enum ir_protocol protocol, uint16_t address, uint16_t code)
+void ir_send(uint16_t carrier, uint8_t duty, uint8_t *pattern)
 {
     ir_reset();
 
-    switch(protocol) {
-        case IR_RC5:
-            ir_write_rc5_pattern(address, code);
-            break;
-        default:
-            return;
-    }
+    ir_pattern = pattern;
 
     ir_start_clock();
 }
-

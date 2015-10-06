@@ -12,7 +12,7 @@ oneir.bin: oneir.hex
 	avr-objcopy -I ihex -O binary $< $@
 
 
-oneir.elf: oneir.c i2c.c ir.c
+oneir.elf: oneir.c i2c.c ir.c rc5.c
 	avr-gcc -std=c99 -Wall -Os -mmcu=attiny45 -o $@ $^
 
 .PHONY: all
