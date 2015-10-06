@@ -4,6 +4,8 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
+#include <stdlib.h>
+
 #define SCL PB2
 #define SDA PB0
 
@@ -12,8 +14,8 @@
 
 enum i2c_state {
     CHECK_ADDRESS,
-    PREPARE_READ_REGISTER,
-    READ_REGISTER,
+    PREPARE_READ_LENGTH,
+    READ_LENGTH,
     PREPARE_READ_DATA,
     READ_DATA,
     DONE
@@ -25,19 +27,19 @@ enum {
 } i2c_direction;
 
 static uint8_t address;
-
+static uint8_t i2c_length;
+volatile static uint8_t i2c_pending;
+static uint8_t *i2c_data_ptr;
+volatile static int i2c_data_ready;
 
 static enum i2c_state state;
-static uint8_t i2c_register;
-
-volatile static int i2c_data_ready;
-static uint16_t i2c_data;
-static uint8_t i2c_data_num;
 
 void i2c_init(uint8_t i2c_address)
 {
     address = i2c_address;
+    i2c_data_ptr = NULL;
     i2c_data_ready = 0;
+    i2c_pending = 0;
 
     DDRB |= ( 1 << SCL ) | ( 1 << SDA );
 
@@ -81,7 +83,6 @@ ISR(USI_START_vect)
   if ( !( PINB & ( 1 << SDAPIN ) ) )
   {
     state = CHECK_ADDRESS;
-    i2c_data_num = 0;
     USISR = 0; //reset overflow counter;
     USISR |= _BV(USIOIF);
     USICR |= _BV(USIOIE) | _BV(USIWM0);
@@ -119,7 +120,7 @@ ISR(USI_OVF_vect)
 
                 SETUP_SEND_ACK();
     
-                state = PREPARE_READ_REGISTER;
+                state = PREPARE_READ_LENGTH;
 
             } else {
                 USICR &= ~(_BV(USIOIE) | _BV(USIWM0));
@@ -127,22 +128,20 @@ ISR(USI_OVF_vect)
             }
             break;
 
-        case PREPARE_READ_REGISTER:
+        case PREPARE_READ_LENGTH:
             SETUP_RECEIVE_BYTE();
-            state = READ_REGISTER;
+            state = READ_LENGTH;
             break;
 
-        case READ_REGISTER:
-            i2c_register = USIDR;
+        case READ_LENGTH:
+            i2c_length = USIDR;
+            state = PREPARE_READ_DATA;
+            SETUP_SEND_ACK();
 
-            if (!i2c_data_ready && i2c_register == 0x10) {
-                SETUP_SEND_ACK();
-                state = PREPARE_READ_DATA;
-            } else {
-                SETUP_SEND_NACK();
-                state = DONE;
+            if (i2c_data_ptr == NULL) {
+                i2c_pending = 1;
+                return;
             }
-        
             break;
 
         case PREPARE_READ_DATA:
@@ -151,14 +150,15 @@ ISR(USI_OVF_vect)
             break;
 
         case READ_DATA:
-            i2c_data >>= 8;
-            i2c_data |= ((uint16_t) USIDR) << 8;
-            i2c_data_num++;
+            *i2c_data_ptr = USIDR;
+            i2c_length--;
+            i2c_data_ptr++;
 
             SETUP_SEND_ACK();
 
-            if (i2c_data_num == 2) {
+            if (i2c_length == 0) {
                 i2c_data_ready = 1;
+                i2c_data_ptr = NULL;
                 state = DONE;
             } else {
                 state = PREPARE_READ_DATA;
@@ -177,13 +177,20 @@ ISR(USI_OVF_vect)
 
 void i2c_receive(struct ir_command *command)
 {
+    i2c_data_ptr = (uint8_t *) command;
+
+    cli();
+
+    if (i2c_pending) {
+        USISR |= _BV(USIOIF); //clear interrupt
+        i2c_pending = 0;
+    }
+
+    sei();
+
     while (!i2c_data_ready)
         ;
 
-    command->type = IR_RC5;
-
-    command->rc5.address = (i2c_data >> 8) & 0xFF;
-    command->rc5.code = i2c_data & 0xFF;
     i2c_data_ready = 0;
 }
 
