@@ -6,11 +6,11 @@
 
 #define IRLED PB1
 
-#define DUTY_CYCLE 60
 
 #define PULSES_PER_SYMBOL 32
 
 static int ir_clkdiv = _BV(CS12);
+static int ir_duty = 60;
 
 static uint8_t *ir_pattern;
 
@@ -62,7 +62,7 @@ void ir_stop_clock()
 ISR(TIM1_OVF_vect)
 {
     if (*ir_pattern) {
-        OCR1A = (*ir_pattern & 0x80) ? DUTY_CYCLE : 0;
+        OCR1A = (*ir_pattern & 0x80) ? ir_duty : 0;
 
         *ir_pattern -= 1;
         
@@ -73,17 +73,22 @@ ISR(TIM1_OVF_vect)
     }
 }
 
-static void ir_reset(void)
+static void ir_config(uint8_t duty)
 {
-    ir_stop_clock();
 
     OCR1C = 221;          // 64MHz divided by 8 = 8Mhz, compare match clear at 221, --> 8Mhz / (221 + 1) = 36.0kHz
 
+    uint16_t _duty = OCR1C;
+    _duty *= duty;
+    _duty /= 100;
+    ir_duty = _duty;
 }
 
 void ir_send(uint16_t carrier, uint8_t duty, uint8_t *pattern)
 {
-    ir_reset();
+    ir_stop_clock();
+    ir_config(duty);
+
 
     ir_pattern = pattern;
 
