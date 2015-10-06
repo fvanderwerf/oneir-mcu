@@ -117,12 +117,9 @@ ISR(USI_OVF_vect)
             if (USIDR >> 1 == address) { 
                 i2c_direction = USIDR & 0x01;
 
-                USIDR = 0; /* pull SDA low */              
-                DDRB |= _BV(SDA); /*set SDA as output */    
-                USISR = 14; /* set counter to send 1 bit */ 
+                SETUP_SEND_ACK();
     
                 state = PREPARE_READ_REGISTER;
-
 
             } else {
                 USICR &= ~(_BV(USIOIE) | _BV(USIWM0));
